@@ -174,6 +174,7 @@ class IPAddress(BASEV2, models.HasId):
     lock_id = sa.Column(sa.Integer(),
                         sa.ForeignKey("quark_locks.id"),
                         nullable=True)
+    lock = orm.relationship("Lock")
 
     def is_shared(self):
         return self.address_type == ip_types.SHARED

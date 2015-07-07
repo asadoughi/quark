@@ -927,3 +927,17 @@ def floating_ip_associate_fixed_ip(context, floating_ip, fixed_ip):
 def floating_ip_disassociate_fixed_ip(context, floating_ip):
     floating_ip.fixed_ip = None
     return floating_ip
+
+
+def lock_create(context, target, **kwargs):
+    lock = models.Lock(**kwargs)
+    context.session.add(lock)
+    target.lock = lock
+    context.session.add(target)
+    return lock
+
+
+def lock_delete(context, target, lock):
+    target.lock_id = None
+    context.session.add(target)
+    context.session.delete(lock)
