@@ -35,9 +35,13 @@ class QuarkIPAddressReallocate(QuarkIpamBaseFunctionalTest):
 
             address["network_id"] = net_mod["id"]
             address["subnet_id"] = sub_mod["id"]
+            locked = address.pop("locked", False)
             ip = db_api.ip_address_create(self.context, **address)
             address.pop("address")
             db_api.ip_address_update(self.context, ip, **address)
+            if locked:
+                db_api.lock_create(self.context, ip,
+                                   type="ip_address", name="")
 
             # NOTE(asadoughi): update after cidr constructor has been invoked
             db_api.subnet_update(self.context,
@@ -69,6 +73,27 @@ class QuarkIPAddressReallocate(QuarkIpamBaseFunctionalTest):
             self.assertEqual(ipaddress[0]['address'], expected)
             self.assertEqual(ipaddress[0]['version'], 4)
             self.assertEqual(ipaddress[0]['used_by_tenant_id'], "fake")
+
+    def test_allocate_finds_ip_reallocates_is_locked(self):
+        network = dict(name="public", tenant_id="fake")
+        ipnet = netaddr.IPNetwork("0.0.0.0/24")
+        next_ip = ipnet.ipv6().first + 3
+        subnet = dict(cidr="0.0.0.0/24", next_auto_assign_ip=next_ip,
+                      ip_policy=None, tenant_id="fake", do_not_use=False)
+
+        addr = netaddr.IPAddress("0.0.0.2")
+        after_reuse_after = cfg.CONF.QUARK.ipam_reuse_after + 1
+        reusable_after = datetime.timedelta(seconds=after_reuse_after)
+        deallocated_at = timeutils.utcnow() - reusable_after
+        ip_address = dict(address=addr, version=4, _deallocated=True,
+                          deallocated_at=deallocated_at, locked=True)
+
+        with self._stubs(network, subnet, ip_address) as net:
+            addresses = []
+            self.ipam.allocate_ip_address(self.context, addresses, net["id"],
+                                          0, 0)
+            self.assertEqual(len(addresses), 1)
+            self.assertNotEqual(addresses[0]["address_readable"], "0.0.0.2")
 
     def test_allocate_finds_ip_in_do_not_use_subnet_raises(self):
         network = dict(name="public", tenant_id="fake")
