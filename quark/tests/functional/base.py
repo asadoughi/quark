@@ -12,6 +12,10 @@ class BaseFunctionalTest(test_base.TestBase):
     def setUp(self):
         super(BaseFunctionalTest, self).setUp()
         self.context = context.Context('fake', 'fake', is_admin=False)
+        cfg.CONF.set_override(
+            'connection_debug',
+            '100',
+            'database')
         cfg.CONF.set_override('connection', 'sqlite://', 'database')
         configure_mappers()
         # Must set the neutron's facade to none before each test

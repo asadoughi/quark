@@ -33,7 +33,8 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
 
     def _insert_ip_policy(self, id=0, excludes=None):
         if not excludes:
-            excludes = (0, 255)
+            net = netaddr.IPNetwork("0.0.0.0/24").ipv6()
+            excludes = (net.first, net.last)
         self.connection.execute(
             self.ip_policy.insert(),
             id=id, size=len(excludes), created_at=EPOCH)
@@ -58,6 +59,8 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
             self.subnets.insert(),
             do_not_use=do_not_use,
             _cidr=cidr,
+            first_ip=netaddr.IPNetwork(cidr).ipv6().first,
+            last_ip=netaddr.IPNetwork(cidr).ipv6().last,
             network_id=network_id,
             ip_version=ip_version,
             segment_id=segment_id,
@@ -66,7 +69,6 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
             created_at=EPOCH)
 
     def _insert_ip_address(self,
-                           address=1,
                            address_readable="0.0.0.1",
                            subnet_id=0,
                            deallocated=0,
@@ -74,7 +76,7 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
                            lock_id=None):
         self.connection.execute(
             self.ip_addresses.insert(),
-            address=address,
+            address=int(netaddr.IPAddress(address_readable).ipv6()),
             address_readable=address_readable,
             subnet_id=subnet_id,
             _deallocated=deallocated,
@@ -143,7 +145,6 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
                             self._insert_lock(id=lock_id)
                         self._insert_ip_address(
                             subnet_id=subnet_id,
-                            address=address,
                             deallocated=deallocated,
                             deallocated_at=deallocated_at,
                             address_readable=address_readable[address],
@@ -160,9 +161,10 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
         reuse_window = base - delta
         epsilon = datetime.timedelta(seconds=1)
 
-        address_readable = {0: "0.0.0.0",
-                            1: "0.0.0.1",
-                            255: "0.0.0.255"}
+        first = netaddr.IPNetwork("0.0.0.0/24").ipv6().first
+        address_readable = {first: "0.0.0.0",
+                            first + 1: "0.0.0.1",
+                            first + 255: "0.0.0.255"}
         subnet_id = 0
         for lock in (None, 1):
             for deallocated in (None, 0, 1):
@@ -178,7 +180,6 @@ class QuarkIpAvailabilityBaseFunctionalTest(BaseFunctionalTest):
                             self._insert_lock(id=lock_id)
                         self._insert_ip_address(
                             subnet_id=subnet_id,
-                            address=address,
                             deallocated=deallocated,
                             deallocated_at=deallocated_at,
                             address_readable=address_readable[address])
@@ -247,14 +248,13 @@ class QuarkIpAvailabilityFilterTest(QuarkIpAvailabilityBaseFunctionalTest):
                 for ip_version in (4, 6):
                     ip_policy_id = subnet_id
                     if ip_version == 6:
-                        net6 = netaddr.IPNetwork('::ffff:0.0.0.0/120')
-                        excludes = (net6.first, net6.last)
-                        cidr = str(net6.cidr)
-                        address = net6.first + 1
+                        cidr = '::ffff:0.0.0.0/120'
                     else:
                         cidr = "0.0.0.0/24"
-                        address = 1
-                        excludes = (0, 255)
+                    net = netaddr.IPNetwork(cidr).ipv6()
+                    excludes = (net.first, net.last)
+                    cidr = str(net.cidr)
+                    address = net.first + 1
 
                     self._insert_ip_policy(
                         id=ip_policy_id,
@@ -268,7 +268,6 @@ class QuarkIpAvailabilityFilterTest(QuarkIpAvailabilityBaseFunctionalTest):
                         ip_version=ip_version)
                     self._insert_ip_address(
                         subnet_id=subnet_id,
-                        address=address,
                         address_readable=str(netaddr.IPAddress(address)))
                     subnet_id += 1
 

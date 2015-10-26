@@ -92,6 +92,7 @@ def get_used_ips(session, **kwargs):
     in the current IP policy (because IP policy is mutable and deallocated IPs
     are not checked nor deleted on IP policy creation, thus deallocated IPs
     that don't fit the current IP policy can exist in the neutron database).
+    - locked IPs
     """
     LOG.debug("Getting used IPs...")
     with session.begin():
@@ -108,6 +109,8 @@ def get_used_ips(session, **kwargs):
         query = query.outerjoin(
             models.IPAddress,
             and_(models.Subnet.id == models.IPAddress.subnet_id,
+                 models.IPAddress.address >= models.Subnet.first_ip,
+                 models.IPAddress.address <= models.Subnet.last_ip,
                  or_(not_(models.IPAddress.lock_id.is_(None)),
                      models.IPAddress._deallocated.is_(None),
                      models.IPAddress._deallocated == 0,
